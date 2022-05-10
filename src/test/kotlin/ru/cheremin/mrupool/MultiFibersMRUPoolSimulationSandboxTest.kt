@@ -13,6 +13,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
+import kotlin.test.Ignore
 
 
 /**
@@ -95,6 +96,42 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
         checkMetaStableIssueReproduced(simulation, stats, expectToReproduce = false)
     }
 
+    @Test
+    fun `MRU auto-sized pool behavior after few spikes`() {
+        val fibersCount = 5
+        val applicationsCount = 1
+
+        val maxPoolSize = 100
+        val queriesInBatch = maxPoolSize
+
+        val (simulation, stats) = runSimulation(
+            fibersCount = fibersCount,
+            applicationsCount = applicationsCount,
+
+            autoSizingPool = true,
+            idleConnectionTimeout = DEFAULT_IDLE_CONNECTION_TIMEOUT,
+            minPoolSize = maxPoolSize / 2,
+            maxPoolSize = maxPoolSize,
+
+            expectedNetworkUtilization = DEFAULT_NETWORK_UTILIZATION,
+
+            issueQueriesUntilTime = TOTAL_SIMULATION_TIME,
+        ) {
+            for (i in 0..20) {
+                issueBatchOfQueriesToEachApplication(
+                    queriesInBatch,
+                    atTime = DEFAULT_ISSUE_BATCH_AT + i * 2 * DEFAULT_IDLE_CONNECTION_TIMEOUT
+                )
+            }
+
+            PrintPoolComponent(
+                at = DEFAULT_ISSUE_BATCH_AT + 21 * (DEFAULT_IDLE_CONNECTION_TIMEOUT * 2),
+                simulation = this
+            )
+        }
+
+        checkMetaStableIssueReproduced(simulation, stats, expectToReproduce = true)
+    }
 
     @Test
     fun `issue several spikes of load and print pool state after each`() {
@@ -134,11 +171,66 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
         //checkMetaStableIssueReproduced(simulation, stats, expectToReproduce = true)
     }
 
+    @RepeatedTest(5)
+    fun `meta-stable failure IS NOT reproduced with single application 700 connections in statically-sized MRU _by taking time_ pool`() {
+        val poolSize = 700
+        val queriesInBatch = poolSize
 
-    //TODO is pathological order became more expressed after MANY spikes?
+        val (simulation, stats) = runSimulation(
+            fibersCount = 5,
+            applicationsCount = 1,
+
+            autoSizingPool = false,
+            mruByTakingTime = true,
+            maxPoolSize = poolSize,
+            minPoolSize = poolSize,
+
+            expectedNetworkUtilization = DEFAULT_NETWORK_UTILIZATION,
+
+            issueQueriesUntilTime = TOTAL_SIMULATION_TIME,
+        ) {
+            issueBatchOfQueriesToEachApplication(queriesInBatch, atTime = DEFAULT_ISSUE_BATCH_AT)
+        }
+        checkMetaStableIssueReproduced(simulation, stats, expectToReproduce = false)
+        //it is slightly worse than LRU pool, since MRU tries hard to use as little
+        // connections as possible, and among those little there is high chance of
+        // >1 connections going through same fiber.
+        // It should be averaged in scenarios with many applications?
+    }
+
+    @RepeatedTest(5)
+    fun `meta-stable failure IS NOT reproduced with 25 applications and 50 connections in statically-sized MRU _by taking time_ pool`() {
+        val fibersCount = 5
+        val applicationsCount = 25
+
+        val poolSize = 50
+        val queriesInBatch = poolSize
+
+        val (simulation, stats) = runSimulation(
+            fibersCount = fibersCount,
+            applicationsCount = applicationsCount,
+
+            autoSizingPool = false,
+            mruByTakingTime = true,
+            minPoolSize = poolSize,
+            maxPoolSize = poolSize,
+
+            expectedNetworkUtilization = DEFAULT_NETWORK_UTILIZATION,
+
+            issueQueriesUntilTime = TOTAL_SIMULATION_TIME,
+        ) {
+            issueBatchOfQueriesToEachApplication(queriesInBatch, atTime = DEFAULT_ISSUE_BATCH_AT)
+        }
+
+        checkMetaStableIssueReproduced(simulation, stats, expectToReproduce = false)
+    }
 
 
-    @Test
+
+    //========================
+
+
+    @RepeatedTest(5)
     fun `meta-stable failure is NOT reproduced with single application and 30 connections in pool`() {
         val fibersCount = 5
 
@@ -173,11 +265,11 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
     }
 
     @RepeatedTest(5)
-    fun `meta-stable failure IS reproduced with 15 applications and auto-sized pool`() {
+    fun `meta-stable failure IS reproduced with 25 applications and auto-sized pool`() {
         val fibersCount = 5
-        val applicationsCount = 15
+        val applicationsCount = 25
 
-        val maxPoolSize = 100
+        val maxPoolSize = 40
         val queriesInBatch = maxPoolSize
 
         val (simulation, stats) = runSimulation(
@@ -200,11 +292,11 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
     }
 
     @RepeatedTest(5)
-    fun `meta-stable failure IS reproduced with 15 applications and 100 connections in pool`() {
+    fun `meta-stable failure IS reproduced with 25 applications and 50 connections in pool`() {
         val fibersCount = 5
-        val applicationsCount = 15
+        val applicationsCount = 25
 
-        val poolSize = 100
+        val poolSize = 50
         val queriesInBatch = poolSize
 
         val (simulation, stats) = runSimulation(
@@ -226,6 +318,7 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
     }
 
     @RepeatedTest(5)
+    @Ignore("Don't work as expected")
     fun `meta-stable failure IS NOT reproduced with 15 applications and high load`() {
         val fibersCount = 5
         val applicationsCount = 15
@@ -258,11 +351,12 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
     }
 
     @RepeatedTest(5)
-    fun `meta-stable failure IS reproduced with single application only with very deep 1000 auto-sized pool`() {
+    fun `meta-stable failure IS reproduced with single application only with very deep 400 auto-sized pool`() {
         val fibersCount = 5
         val applicationsCount = 1
 
-        val queriesInBatch = 1000
+        val maxPoolSize = 400
+        val queriesInBatch = maxPoolSize
 
         val (simulation, stats) = runSimulation(
             fibersCount = fibersCount,
@@ -270,8 +364,8 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
 
             autoSizingPool = true,
             idleConnectionTimeout = DEFAULT_IDLE_CONNECTION_TIMEOUT,
-            minPoolSize = 500,
-            maxPoolSize = 1000,
+            minPoolSize = maxPoolSize / 2,
+            maxPoolSize = maxPoolSize,
 
             expectedNetworkUtilization = DEFAULT_NETWORK_UTILIZATION,
 
@@ -284,8 +378,8 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
     }
 
     @RepeatedTest(5)
-    fun `meta-stable failure IS reproduced with single application only with very deep 1000 statically-sized pool`() {
-        val poolSize = 1000
+    fun `meta-stable failure IS reproduced with single application only with very deep 700 statically-sized pool`() {
+        val poolSize = 700
         val queriesInBatch = poolSize
 
         val (simulation, stats) = runSimulation(
@@ -496,6 +590,7 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
         applicationsCount: Int,
 
         autoSizingPool: Boolean,
+        mruByTakingTime: Boolean = false,
         idleConnectionTimeout: Double = Double.MAX_VALUE,
         maxPoolSize: Int,
         minPoolSize: Int,
@@ -518,7 +613,7 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
                 val randomSeed = random.nextInt()
                 MRUPoolAutoSizing(
                     {
-                        val fiberIndex = abs(connectionIndex++ + randomSeed) % fibers.size
+                        val fiberIndex = abs((connectionIndex++) + randomSeed) % fibers.size
                         val fiber = fibers[fiberIndex]
                         Connection("conn[$connectionIndex] via $fiber", fiber)
                     },
@@ -530,14 +625,29 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
         } else {
             {
                 var connectionIndex = 0;
-                MRUPool(
-                    {
-                        val fiberIndex = (connectionIndex++) % fibers.size
-                        val fiber = fibers[fiberIndex]
-                        Connection("conn[$connectionIndex] via $fiber", fiber)
-                    },
-                    poolSize = maxPoolSize
-                )
+                val randomSeed = random.nextInt()
+                val connectionFactory = {
+                    val fiberIndex = abs((connectionIndex++) + randomSeed) % fibers.size
+                    val fiber = fibers[fiberIndex]
+                    Connection("conn[$connectionIndex] via $fiber", fiber)
+                }
+                if (mruByTakingTime) {
+                    PoolWithCustomizableOrder(
+                        connectionFactory,
+                        poolSize = maxPoolSize,
+                        PoolWithCustomizableOrder.MOST_RECENTLY_TAKEN
+                    )
+                } else {
+                    PoolWithCustomizableOrder(
+                        connectionFactory,
+                        poolSize = maxPoolSize,
+                        PoolWithCustomizableOrder.MOST_RECENTLY_RELEASED
+                    )
+//                    MRUPool(
+//                        connectionFactory,
+//                        poolSize = maxPoolSize
+//                    )
+                }
             }
         }
 
@@ -552,7 +662,11 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
         if (autoSizingPool) {
             println("   pool(s): auto-sizing $minPoolSize..$maxPoolSize, idle timeout: $idleConnectionTimeout ms")
         } else {
-            println("   pool(s): static size: $maxPoolSize")
+            if (mruByTakingTime) {
+                println("   pool(s): static size: $maxPoolSize, MRU by taking time")
+            } else {
+                println("   pool(s): static size: $maxPoolSize")
+            }
         }
 
         val poolUtilization = (meanNetworkTime * 2.0 + meanDbTime) / meanInterArrivalTime
@@ -684,6 +798,8 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
     }
 
     class PrintPoolComponent(at: TickTime, val simulation: MRUPoolSimulation) : Component(at = at) {
+        constructor(at: Double, simulation: MRUPoolSimulation) : this(at.asTickTime(), simulation)
+
         override fun process() = sequence<Component> {
             //TODO why there is no clustering in multi-app setup after spike load?
             println("Pools at ${simulation.now}:")

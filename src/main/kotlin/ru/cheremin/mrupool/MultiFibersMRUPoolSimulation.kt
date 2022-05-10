@@ -4,6 +4,7 @@ package ru.cheremin.mrupool
 import krangl.*
 import org.kalasim.*
 import org.kalasim.analysis.ResourceActivityEvent
+import java.util.PriorityQueue
 import java.util.concurrent.TimeUnit.MILLISECONDS
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -78,6 +79,87 @@ class MRUPool : Pool {
     }
 }
 
+//TODO RC: same for pool with auto-sizing
+class PoolWithCustomizableOrder : Pool {
+    private val size: Int
+        get() = capacity.toInt()
+
+    private val connectionsList: ArrayList<ConnectionHolder> = ArrayList()
+    private val connectionsStack: PriorityQueue<ConnectionHolder>
+
+    override val connections
+        get() = connectionsStack.map { it.connection }
+
+    data class ConnectionHolder(
+        val connection: Connection,
+        var mostRecentlyTakenAt: TickTime,
+        var mostRecentlyReleasedAt: TickTime
+    ) {
+        constructor(connection: Connection) : this(
+            connection,
+            Double.NEGATIVE_INFINITY.asTickTime(),
+            Double.NEGATIVE_INFINITY.asTickTime()
+        )
+    }
+
+    companion object {
+        val MOST_RECENTLY_TAKEN: Comparator<ConnectionHolder> = Comparator { c1, c2 ->
+            -c1.mostRecentlyTakenAt.compareTo(c2.mostRecentlyTakenAt)
+        }
+        val LEAST_RECENTLY_TAKEN: Comparator<ConnectionHolder> = Comparator { c1, c2 ->
+            c1.mostRecentlyTakenAt.compareTo(c2.mostRecentlyTakenAt)
+        }
+        val MOST_RECENTLY_RELEASED: Comparator<ConnectionHolder> = Comparator { c1, c2 ->
+            -c1.mostRecentlyReleasedAt.compareTo(c2.mostRecentlyReleasedAt)
+        }
+        val LEAST_RECENTLY_RELEASED: Comparator<ConnectionHolder> = Comparator { c1, c2 ->
+            c1.mostRecentlyReleasedAt.compareTo(c2.mostRecentlyReleasedAt)
+        }
+    }
+
+    constructor(
+        connections: List<Connection>,
+        connectionsOrder: Comparator<in ConnectionHolder>
+    )
+            : super("MRUPoolByTakingTime", capacity = connections.size) {
+        connectionsList.addAll(
+            connections.map { ConnectionHolder(it) }
+        )
+
+        connectionsStack = PriorityQueue(connectionsOrder)
+        connectionsStack.addAll(connectionsList)
+    }
+
+    constructor(
+        connectionFactory: () -> Connection,
+        poolSize: Int,
+        connectionsOrder: Comparator<in ConnectionHolder>
+    ) : this(
+        generateSequence { connectionFactory() }.take(poolSize).toList(),
+        connectionsOrder
+    )
+
+    override fun take(): Connection {
+        if (connectionsStack.isEmpty()) {
+            throw IllegalStateException("Pool is empty: .take() without .request()?")
+        }
+        val top = connectionsStack.poll()
+        top.mostRecentlyTakenAt = now
+        return top.connection
+    }
+
+    override fun release(conn: Connection) {
+        val holder = connectionsList.find { it.connection == conn }
+        if (holder == null) {
+            throw IllegalStateException(
+                "Connection $conn is not from this pool. " +
+                        "This pool connections are: $connectionsList"
+            )
+        }
+        holder.mostRecentlyReleasedAt = now
+        connectionsStack.add(holder)
+    }
+}
 
 class MRUPoolAutoSizing : Pool {
     private val connectionFactory: () -> Connection
