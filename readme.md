@@ -5,10 +5,17 @@ Simulation of "link imbalance metastable issue" described in
 Simulation is built on [kalasim](https://www.kalasim.org/) -- Kotlin discrete-events simulation engine.
 
 ### Link imbalance metastable issue 
-TODO
+Basically, issue arises in facebook datacenters due to interaction between:
+ * MRU strategy in DB connection pools, used by apps
+ * Multi-fiber network link between apps and DB server
+ * Periodical spikes of load of many small short queries
+
+These 3 pieces together interact in such a way that almost all network activity is attracted
+to a single fiber, which exceeds its capacity.
+
 More details:
-* ["Metastable Failures in Distributed Systems"](https://doi.org/10.1145/3458336.3465286) Nathan Bronson, Abutalib Aghayev, Aleksey Charapko, Timothy Zhu
-* ["Solving the Mystery of Link Imbalance: A Metastable Failure State at Scale"](https://engineering.fb.com/2014/11/14/production-engineering/solving-the-mystery-of-link-imbalance-a-metastable-failure-state-at-scale/)
+ * ["Metastable Failures in Distributed Systems"](https://doi.org/10.1145/3458336.3465286) Nathan Bronson, Abutalib Aghayev, Aleksey Charapko, Timothy Zhu
+ * ["Solving the Mystery of Link Imbalance: A Metastable Failure State at Scale"](https://engineering.fb.com/2014/11/14/production-engineering/solving-the-mystery-of-link-imbalance-a-metastable-failure-state-at-scale/)
 
 
 ### Simulation structure
