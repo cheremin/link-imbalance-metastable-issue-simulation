@@ -5,7 +5,7 @@ Simulation of "link imbalance metastable issue" described in
 Simulation is built on [kalasim](https://www.kalasim.org/) -- Kotlin discrete-events simulation engine.
 
 ### Link imbalance metastable issue 
-Basically, issue arises in facebook datacenters due to interaction between:
+Basically, issue was happening in facebook datacenters due to interaction between:
  * MRU strategy in DB connection pools, used by apps
  * Multi-fiber network link between apps and DB server
  * Periodical spikes of load of many small short queries
@@ -19,16 +19,18 @@ More details:
 
 
 ### Simulation structure
-Simulation is build around `Pool`, `Fiber`, `Connection` and `Query` domain objects.
+Simulation is built around `Pool`, `Fiber`, `Connection` and `Query` domain objects.
 "Client" (which is the source of `Query`es) is modelled by `kalasim`'s `ComponentGenerator`
 "DB" behavior in current simulation is just a delay, hence it is not modelled explicitly at all.
                                                          
-Both `Pool` implementation and `Fiber` are extending `kalasim` `Resource`, which gives
-acquire/release occupation-controlling behavior for free, but also allows to rely on `kalasim`
-statistical data gathered for `Resource`s
+Both `Pool` implementations and `Fiber` are extending `kalasim` `Resource`, which gives
+acquire/release occupation-controlling behavior for free. It is also quite natural choice
+(both pools and fibers are indeed resources with limited capacity), and allows in 
+post-processing to use extended statistical data `kalasim` gathers for `Resource`s 
                                                              
-Simulation primitives are in `MultiFibersMRUPoolSimulation`, and different scenarios
-are grouped in tests, e.g. `MultiFibersMRUPoolSimulationScenarios`. These tests are 
-probabilistic by nature, i.e. success/failure is usually not guaranteed, but happens
-with high enough probability, e.g. >90%. Many tests are used `RepeatedTest` annotation
+Simulation domain objects are in `MultiFibersMRUPoolSimulation`. 
+
+Simulation scenarios are created as tests, e.g. `MultiFibersMRUPoolSimulationScenarios`. 
+Such tests are probabilistic by nature, i.e. success/failure is usually not guaranteed, 
+but happens with high enough probability, e.g. >90%. Many tests are used `RepeatedTest` 
 to give a sense of success/failure odds explicitly. 
