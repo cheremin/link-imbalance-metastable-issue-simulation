@@ -226,6 +226,37 @@ internal class MultiFibersMRUPoolSimulationSandboxTest {
     }
 
 
+    @RepeatedTest(5)
+    fun `meta-stable failure IS NOT reproduced with 25 applications and 50 connections in statically-sized MRU _by taking time_ pool even with multiple spikes`() {
+        val fibersCount = 5
+        val applicationsCount = 25
+
+        val poolSize = 50
+        val queriesInBatch = poolSize
+
+        val (simulation, stats) = runSimulation(
+            fibersCount = fibersCount,
+            applicationsCount = applicationsCount,
+
+            autoSizingPool = false,
+            mruByTakingTime = true,
+            minPoolSize = poolSize,
+            maxPoolSize = poolSize,
+
+            expectedNetworkUtilization = DEFAULT_NETWORK_UTILIZATION,
+
+            issueQueriesUntilTime = TOTAL_SIMULATION_TIME,
+        ) {
+            for (i in 0..5)
+                issueBatchOfQueriesToEachApplication(
+                    queriesInBatch,
+                    atTime = DEFAULT_ISSUE_BATCH_AT + 250 * i * DEFAULT_IDLE_CONNECTION_TIMEOUT
+                )
+        }
+
+        checkMetaStableIssueReproduced(simulation, stats, expectToReproduce = false)
+    }
+
 
     //========================
 
