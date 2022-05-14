@@ -17,7 +17,7 @@ acquire/release occupation-controlling behavior for free, but also allows to rel
 statistical data gathered for `Resource`s
                                                              
 Simulation primitives are in `MultiFibersMRUPoolSimulation`, and different scenarios
-are grouped in tests, e.g. `MultiFibersMRUPoolSimulationSandbox`. These tests are 
+are grouped in tests, e.g. `MultiFibersMRUPoolSimulationScenarios`. These tests are 
 probabilistic by nature, i.e. success/failure is usually not guaranteed, but happens
 with high enough probability, e.g. >90%. Many tests are used `RepeatedTest` annotation
 to give a sense of success/failure odds explicitly. 

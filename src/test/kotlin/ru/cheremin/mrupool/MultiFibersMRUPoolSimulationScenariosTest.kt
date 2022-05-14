@@ -21,7 +21,7 @@ import kotlin.test.Ignore
  * @author ruslan
  * created 08.04.2022 at 10:18
  */
-internal class MultiFibersMRUPoolSimulationSandboxTest {
+internal class MultiFibersMRUPoolSimulationScenariosTest {
 
     /**If null -> print it to stdout*/
     private val simulationStatisticsCSVToFile = File("result.csv")
